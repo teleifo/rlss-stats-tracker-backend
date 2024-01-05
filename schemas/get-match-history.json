@@ -1,0 +1,14 @@
+{
+    "type": "object",
+    "required": [ "user" ],
+    "properties": {
+        "user": {
+            "type": "string",
+            "pattern": "^(?!\\s*$).+$"
+        },
+        "season": {
+            "type": "number",
+            "exclusiveMinimum": 0
+        }
+    }
+}
