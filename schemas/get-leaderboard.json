@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "required": [
+    "category"
+  ],
+  "properties": {
+    "category": {
+      "type": "string",
+      "pattern": "^(?!\\s*$).+$"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "required": [
+    "user"
+  ],
+  "properties": {
+    "user": {
+      "type": "string",
+      "pattern": "^(?!\\s*$).+$"
+    }
+  }
+}

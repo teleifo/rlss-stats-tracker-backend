@@ -1,29 +1,36 @@
 {
-    "type": "object",
-    "required": [
-        "winner",
-        "loser",
-        "score",
-        "season"
-    ],
-    "properties": {
-        "winner": {
-            "type": "string",
-            "pattern": "^(?!\\s*$).+$"
-        },
-        "loser": {
-            "type": "string",
-            "pattern": "^(?!\\s*$).+$"
-        },
-        "score": {
-            "type": "array",
-            "items": { "type": "number" },
-            "minItems": 2,
-            "maxItems": 2
-        },
-        "season": {
-            "type": "number",
-            "exclusiveMinimum": 0
-        }
+  "type": "object",
+  "required": [
+    "winner",
+    "loser",
+    "score",
+    "date",
+    "season"
+  ],
+  "properties": {
+    "winner": {
+      "type": "string",
+      "pattern": "^(?!\\s*$).+$"
+    },
+    "loser": {
+      "type": "string",
+      "pattern": "^(?!\\s*$).+$"
+    },
+    "score": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^([0-9]){4}-([0-9]){2}-([0-9]){2}$"
+    },
+    "season": {
+      "type": "number",
+      "exclusiveMinimum": 0
     }
+  }
 }
