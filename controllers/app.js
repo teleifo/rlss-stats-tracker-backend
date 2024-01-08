@@ -19,17 +19,18 @@ const schemas = require("../schemas/schemas");
 app.get("/users", function (req, res, next) {
   console.log(`Servicing GET /users`);
 
-  getDocs(collection(db, "users")).then(snapshot => {
-    const arr = [];
-    snapshot.forEach(doc => {
-      arr.push({
-        id: doc.id,
-        ...doc.data()
+  getDocs(collection(db, "users"))
+    .then(snapshot => {
+      const arr = [];
+      snapshot.forEach(doc => {
+        arr.push({
+          id: doc.id,
+          ...doc.data()
+        });
       });
-    });
 
-    res.send(arr);
-  });
+      res.send(arr);
+    });
 });
 
 /**
@@ -66,101 +67,120 @@ app.get("/user", function (req, res, next) {
   }
 
   const userRef = doc(db, "users", data.user);
-  getDoc(userRef).then(snapshot => {
-    if (snapshot.exists()) {
-      const matchesRef = collection(db, "matches");
-      const q = query(matchesRef,
-        or(
-          where("winner", "==", data.user),
-          where("loser", "==", data.user)
-        )
-      );
+  getDoc(userRef)
+    .then(snapshot => {
+      if (snapshot.exists()) {
+        const matchesRef = collection(db, "matches");
+        const q = query(matchesRef,
+          or(
+            where("winner", "==", data.user),
+            where("loser", "==", data.user)
+          )
+        );
 
-      getDocs(q).then(snapshot => {
-        const arr = [];
-        snapshot.forEach(doc => {
-          arr.push({
-            id: doc.id,
-            ...doc.data()
+        getDocs(q)
+          .then(snapshot => {
+            const arr = [];
+            snapshot.forEach(doc => {
+              arr.push({
+                id: doc.id,
+                ...doc.data()
+              });
+            });
+
+            var matchesWon = 0,
+              goalsScored = 0,
+              goalsConceded = 0;
+              
+            var matchesPlayed = arr.length;
+
+            arr.forEach(match => { if (match.winner === data.user) matchesWon++ });
+            
+            var winPercentage = (matchesWon / matchesPlayed * 100).toFixed(2);
+
+            arr.forEach(match => {
+              goalsScored += (match.winner === data.user) ? match.score[0] : match.score[1]
+            });
+
+            arr.forEach(match => {
+              goalsConceded += (match.winner === data.user) ? match.score[1] : match.score[0]
+            });
+
+            var averageGoals = (goalsScored / matchesPlayed).toFixed(2);
+            
+            res.send({
+              matchesPlayed,
+              matchesWon,
+              winPercentage,
+              goalsScored,
+              goalsConceded,
+              averageGoals,
+              matchHistory: arr
+            });
+          }).catch(err => {
+            console.log(err);
+            return next({ msg: err.code });
           });
-        });
-
-        var matchesWon = 0,
-          goalsScored = 0,
-          goalsConceded = 0;
-          
-        var matchesPlayed = arr.length;
-
-        arr.forEach(match => { if (match.winner === data.user) matchesWon++ });
-        
-        var winPercentage = (matchesWon / matchesPlayed * 100).toFixed(2);
-
-        arr.forEach(match => {
-          goalsScored += (match.winner === data.user) ? match.score[0] : match.score[1]
-        });
-
-        arr.forEach(match => {
-          goalsConceded += (match.winner === data.user) ? match.score[1] : match.score[0]
-        });
-
-        var averageGoals = (goalsScored / matchesPlayed).toFixed(2);
-        
-        res.send({
-          matchesPlayed,
-          matchesWon,
-          winPercentage,
-          goalsScored,
-          goalsConceded,
-          averageGoals,
-          matchHistory: arr
-        });
-      }).catch(err => {
-        console.log(err);
-        return next({ msg: err.code });
+      } else return next({
+        msg: `User "${data.user}" not found`,
+        status: 400
       });
-    } else return next({
-      msg: `User "${data.user}" not found`,
-      status: 400
+    }).catch(err => {
+      console.log(err);
+      return next({ msg: err.code });
     });
-  }).catch(err => {
-    console.log(err);
-    return next({ msg: err.code });
-  });
 });
 
 /**
  * * Get Leaderboard
  */
-// app.get("/leaderboard", function (req, res, next) {
-//   console.log(`Servicing GET /leaderboard`);
+app.get("/leaderboard", function (req, res, next) {
+  console.log(`Servicing GET /leaderboard`);
 
-//   var data = req.query;
+  var data = req.query;
 
-//   const validator = JSONValidator(data, schemas.getLeaderboard);
-//   if (!validator.valid) {
-//     const err = validator.errors[0];
+  const validator = JSONValidator(data, schemas.getLeaderboard);
+  if (!validator.valid) {
+    const err = validator.errors[0];
 
-//     switch (err.property) {
-//       case "instance":
-//         return next({
-//           msg: `Invalid value for "${err.argument}"`,
-//           status: 400
-//         });
+    switch (err.property) {
+      case "instance":
+        return next({
+          msg: `Invalid value for "${err.argument}"`,
+          status: 400
+        });
 
-//       case "instance.category":
-//         return next({
-//           msg: "Invalid value for \"category\"",
-//           status: 400
-//         });
+      case "instance.category":
+        return next({
+          msg: "Invalid value for \"category\"",
+          status: 400
+        });
 
-//       default:
-//         return next({
-//           msg: "Unknown server error",
-//           status: 500
-//         });
-//     }
-//   }
-// });
+      default:
+        return next({
+          msg: "Unknown server error",
+          status: 500
+        });
+    }
+  }
+
+  getDocs(collection(db, "matches"))
+    .then(snapshot=> {
+      const arr = [];
+      snapshot.forEach(doc => {
+        arr.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+
+      res.send(arr);
+    })
+    .catch(err => {
+      console.log(err);
+      return next({ msg: err.code });
+    });
+});
 
 /**
  * * Add Match
@@ -227,42 +247,44 @@ app.post("/match", function (req, res, next) {
     )
   );
 
-  getDocs(q).then(snapshot => {
-    const arr = [];
-    snapshot.forEach(doc => { arr.push(doc.id); });
+  getDocs(q)
+    .then(snapshot => {
+      const arr = [];
+      snapshot.forEach(doc => { arr.push(doc.id); });
 
-    if (!arr.includes(data.winner)) return next({
-      msg: `User "${data.winner}" not found`,
-      status: 400
-    });
-    else if (!arr.includes(data.loser)) return next({
-      msg: `User "${data.loser}" not found`,
-      status: 400
-    });
-    else {
-      const payload = {
-        winner: data.winner,
-        loser: data.loser,
-        score: data.score,
-        date: Timestamp.fromDate(new Date(data.date)),
-        season: data.season
-      }
-
-      addDoc(collection(db, "matches"), payload).then(docRef => {
-        // console.log(docRef);
-        res.send({
-          success: true,
-          id: docRef.id
-        });
-      }).catch(err => {
-        console.log(err);
-        return next({ msg: err.code });
+      if (!arr.includes(data.winner)) return next({
+        msg: `User "${data.winner}" not found`,
+        status: 400
       });
-    }
-  }).catch(err => {
-    console.log(err);
-    return next({ msg: err.code });
-  });
+      else if (!arr.includes(data.loser)) return next({
+        msg: `User "${data.loser}" not found`,
+        status: 400
+      });
+      else {
+        const payload = {
+          winner: data.winner,
+          loser: data.loser,
+          score: data.score,
+          date: Timestamp.fromDate(new Date(data.date)),
+          season: data.season
+        }
+
+        addDoc(collection(db, "matches"), payload)
+          .then(docRef => {
+            // console.log(docRef);
+            res.send({
+              success: true,
+              id: docRef.id
+            });
+          }).catch(err => {
+            console.log(err);
+            return next({ msg: err.code });
+          });
+      }
+    }).catch(err => {
+      console.log(err);
+      return next({ msg: err.code });
+    });
 });
 
 /**
