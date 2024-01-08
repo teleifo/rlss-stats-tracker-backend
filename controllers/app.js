@@ -14,7 +14,7 @@ const JSONValidator = require("./json-validator");
 const schemas = require("../schemas/schemas");
 
 /**
- * * Get Users
+ * * Get All Users
  */
 app.get("/users", function (req, res, next) {
   console.log(`Servicing GET /users`);
@@ -34,97 +34,70 @@ app.get("/users", function (req, res, next) {
 });
 
 /**
- * * Get User
+ * * Get All User Info
  */
-app.get("/user", function (req, res, next) {
-  console.log(`Servicing GET /user`);
+app.get("/user-info", function (req, res, next) {
+  console.log(`Servicing GET /user-info`);
 
-  var data = req.query;
-
-  const validator = JSONValidator(data, schemas.getUser);
-  if (!validator.valid) {
-    const err = validator.errors[0];
-
-    switch (err.property) {
-      case "instance":
-        return next({
-          msg: `Invalid value for "${err.argument}"`,
-          status: 400
+  getDocs(collection(db, "matches"))
+    .then(matchSnapshot => {
+      const matchArr = [];
+      matchSnapshot.forEach(doc => {
+        matchArr.push({
+          id: doc.id,
+          ...doc.data()
         });
+      });
 
-      case "instance.user":
-        return next({
-          msg: "Invalid value for \"user\"",
-          status: 400
-        });
-
-      default:
-        return next({
-          msg: "Unknown server error",
-          status: 500
-        });
-    }
-  }
-
-  const userRef = doc(db, "users", data.user);
-  getDoc(userRef)
-    .then(snapshot => {
-      if (snapshot.exists()) {
-        const matchesRef = collection(db, "matches");
-        const q = query(matchesRef,
-          or(
-            where("winner", "==", data.user),
-            where("loser", "==", data.user)
-          )
-        );
-
-        getDocs(q)
-          .then(snapshot => {
-            const arr = [];
-            snapshot.forEach(doc => {
-              arr.push({
-                id: doc.id,
-                ...doc.data()
-              });
+      getDocs(collection(db, "users"))
+        .then(userSnapshot => {
+          const userArr = [];
+          userSnapshot.forEach(doc => {
+            userArr.push({
+              id: doc.id,
+              ...doc.data()
             });
+          });
 
+          var allUserInfo = [];
+
+          userArr.forEach(user => {
+            var matchHistory = matchArr.filter(match => (match.winner === user.name || match.loser === user.name));
+          
             var matchesWon = 0,
-              goalsScored = 0,
-              goalsConceded = 0;
+            goalsScored = 0,
+            goalsConceded = 0;
               
-            var matchesPlayed = arr.length;
-
-            arr.forEach(match => { if (match.winner === data.user) matchesWon++ });
+            var matchesPlayed = matchHistory.length;
+  
+            matchHistory.forEach(match => { if (match.winner === user.name) matchesWon++ });
             
             var winPercentage = (matchesWon / matchesPlayed * 100).toFixed(2);
-
-            arr.forEach(match => {
-              goalsScored += (match.winner === data.user) ? match.score[0] : match.score[1]
+  
+            matchHistory.forEach(match => {
+              goalsScored += (match.winner === user.name) ? match.score[0] : match.score[1]
             });
-
-            arr.forEach(match => {
-              goalsConceded += (match.winner === data.user) ? match.score[1] : match.score[0]
+  
+            matchHistory.forEach(match => {
+              goalsConceded += (match.winner === user.name) ? match.score[1] : match.score[0]
             });
-
+  
             var averageGoals = (goalsScored / matchesPlayed).toFixed(2);
-            
-            res.send({
+
+            allUserInfo.push({
+              name: user.name,
               matchesPlayed,
               matchesWon,
               winPercentage,
               goalsScored,
               goalsConceded,
               averageGoals,
-              matchHistory: arr
+              matchHistory
             });
-          }).catch(err => {
-            console.log(err);
-            return next({ msg: err.code });
           });
-      } else return next({
-        msg: `User "${data.user}" not found`,
-        status: 400
-      });
+
+          res.send(allUserInfo);
+        });
     }).catch(err => {
       console.log(err);
       return next({ msg: err.code });
@@ -137,44 +110,119 @@ app.get("/user", function (req, res, next) {
 app.get("/leaderboard", function (req, res, next) {
   console.log(`Servicing GET /leaderboard`);
 
-  var data = req.query;
-
-  const validator = JSONValidator(data, schemas.getLeaderboard);
-  if (!validator.valid) {
-    const err = validator.errors[0];
-
-    switch (err.property) {
-      case "instance":
-        return next({
-          msg: `Invalid value for "${err.argument}"`,
-          status: 400
-        });
-
-      case "instance.category":
-        return next({
-          msg: "Invalid value for \"category\"",
-          status: 400
-        });
-
-      default:
-        return next({
-          msg: "Unknown server error",
-          status: 500
-        });
-    }
-  }
-
   getDocs(collection(db, "matches"))
-    .then(snapshot=> {
-      const arr = [];
-      snapshot.forEach(doc => {
-        arr.push({
+    .then(matchSnapshot => {
+      const matchArr = [];
+      matchSnapshot.forEach(doc => {
+        matchArr.push({
           id: doc.id,
           ...doc.data()
         });
       });
 
-      res.send(arr);
+      getDocs(collection(db, "users"))
+        .then(userSnapshot => {
+          const userArr = [];
+          userSnapshot.forEach(doc => {
+            userArr.push({
+              id: doc.id,
+              ...doc.data()
+            });
+          });
+
+          var allUserInfo = [], leaderboard = [];
+
+          userArr.forEach(user => {
+            var matchHistory = matchArr.filter(match => (match.winner === user.name || match.loser === user.name));
+          
+            var matchesWon = 0,
+            goalsScored = 0,
+            goalsConceded = 0;
+              
+            var matchesPlayed = matchHistory.length;
+  
+            matchHistory.forEach(match => { if (match.winner === user.name) matchesWon++ });
+            
+            var winPercentage = (matchesWon / matchesPlayed * 100).toFixed(2);
+  
+            matchHistory.forEach(match => {
+              goalsScored += (match.winner === user.name) ? match.score[0] : match.score[1]
+            });
+  
+            matchHistory.forEach(match => {
+              goalsConceded += (match.winner === user.name) ? match.score[1] : match.score[0]
+            });
+  
+            var averageGoals = (goalsScored / matchesPlayed).toFixed(2);
+
+            allUserInfo.push({
+              name: user.name,
+              matchesPlayed,
+              matchesWon,
+              winPercentage,
+              goalsScored,
+              goalsConceded,
+              averageGoals
+            });
+          });
+
+          const mostMatchesPlayed = 
+            allUserInfo.map(userInfo => ({ username: userInfo.name, stat: userInfo.matchesPlayed }))
+              .sort((a, b) => b.stat - a.stat);
+
+          const mostMatchesWon = 
+            allUserInfo.map(userInfo => ({ username: userInfo.name, stat: userInfo.matchesWon }))
+              .sort((a, b) => b.stat - a.stat);
+
+          const highestWinPercentage = 
+            allUserInfo.map(userInfo => ({ username: userInfo.name, stat: userInfo.winPercentage }))
+              .sort((a, b) => b.stat - a.stat);
+
+          const mostGoalsScored = 
+            allUserInfo.map(userInfo => ({ username: userInfo.name, stat: userInfo.goalsScored }))
+              .sort((a, b) => b.stat - a.stat);
+          
+          const mostGoalsConceded = 
+            allUserInfo.map(userInfo => ({ username: userInfo.name, stat: userInfo.goalsConceded }))
+              .sort((a, b) => b.stat - a.stat);
+
+          const highestAverageGoals = 
+            allUserInfo.map(userInfo => ({ username: userInfo.name, stat: userInfo.averageGoals }))
+              .sort((a, b) => b.stat - a.stat);
+
+          res.send({
+            mostMatchesPlayed: {
+              leaderboardName: "Most Matches Played",
+              categoryName: "Matches Played",
+              leaderboard: mostMatchesPlayed
+            },
+            mostMatchesWon: {
+              leaderboardName: "Most Matches Won",
+              categoryName: "Matches Won",
+              leaderboard: mostMatchesWon
+            },
+            highestWinPercentage: {
+              leaderboardName: "Highest Win Percentage",
+              categoryName: "Win Percentage",
+              leaderboard: highestWinPercentage
+            },
+            mostGoalsScored: {
+              leaderboardName: "Most Goals Scored",
+              categoryName: "Goals Scored",
+              leaderboard: mostGoalsScored
+            },
+            mostGoalsConceded: {
+              leaderboardName: "Most Goals Conceded", 
+              categoryName: "Goals Conceded",
+              leaderboard: mostGoalsConceded
+            },
+            highestAverageGoals: {
+              leaderboardName: "Highest Average Goals",
+              categoryName: "Average Goals Per Match",
+              leaderboard: highestAverageGoals
+            }
+          });
+        });
     })
     .catch(err => {
       console.log(err);
